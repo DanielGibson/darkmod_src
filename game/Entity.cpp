@@ -348,7 +348,6 @@ const idEventDef EV_SetGuiStringFromKey( "setGuiStringFromKey",
 const idEventDef EV_CallGui( "callGui", EventArgs('d', "handle", "", 's', "namedEvent", ""), EV_RETURNS_VOID, "Calls a named event in a GUI.");
 const idEventDef EV_CreateOverlay( "createOverlay", EventArgs('s', "guiFile", "", 'd', "layer", ""), 'd', "Creates a GUI overlay. (must be used on the player)" );
 const idEventDef EV_DestroyOverlay( "destroyOverlay", EventArgs('d', "handle", ""), EV_RETURNS_VOID, "Destroys a GUI overlay. (must be used on the player)");
-const idEventDef EV_CreateXrayOverlay( "createXrayOverlay", EventArgs('s', "guiFile", ""), 'd', "Creates a GUI overlay with X-ray material. (must be used on the player)" );
 const idEventDef EV_LoadExternalData( "loadExternalData", EventArgs('s', "declFile", "", 's', "prefix", ""), 'd', "Load an external xdata declaration." );
 
 // Obsttorte: #5976
@@ -658,7 +657,6 @@ ABSTRACT_DECLARATION( idClass, idEntity )
 	EVENT( EV_CallGui,				idEntity::Event_CallGui )
 	EVENT( EV_CreateOverlay,		idEntity::Event_CreateOverlay )
 	EVENT( EV_DestroyOverlay,		idEntity::Event_DestroyOverlay )
-	EVENT( EV_CreateXrayOverlay,	idEntity::Event_CreateXrayOverlay )
 
 	EVENT( EV_LoadExternalData,		idEntity::Event_LoadExternalData )
 
@@ -11916,11 +11914,6 @@ void idEntity::DestroyOverlay(int handle)
 void idEntity::Event_CreateOverlay( const char *guiFile, int layer )
 {
 	idThread::ReturnInt(CreateOverlay(guiFile, layer));
-}
-
-void idEntity::Event_CreateXrayOverlay( const char *guiFile )
-{
-	idThread::ReturnInt(CreateOverlay(guiFile, LAYER_XRAY));
 }
 
 int idEntity::CreateOverlay(const char *guiFile, int layer)

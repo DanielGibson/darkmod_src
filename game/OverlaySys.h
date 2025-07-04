@@ -26,7 +26,6 @@ const int OVERLAYS_INVALID_HANDLE = 0;
 */
 enum
 {
-	LAYER_XRAY = -10,		// Don't use directly, call createXrayOverlay
 	LAYER_UNDERWATER = 0,	// Draw the underwater overlay first
 
 	// overlays on this and earlier layers are part of game world and are tonemapped
