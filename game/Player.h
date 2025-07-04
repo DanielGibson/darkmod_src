@@ -654,8 +654,6 @@ public:
 
 	void					DrawHUD( idUserInterface *hud );
 
-	void					CheckForXrayOverlay();
-
 	void					WeaponFireFeedback( const idDict *weaponDef );
 
 	float					DefaultFov( void ) const;

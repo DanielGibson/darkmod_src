@@ -1775,7 +1775,6 @@ void idRenderSystemLocal::Clear( void ) {
 	frontEndJobList = NULL;
 	// make sure we don't try to reuse dead subview images after engine restart
 	subviewImages.Clear();
-	xrayGuiImageOverride = nullptr;
 }
 
 /*
@@ -1807,8 +1806,6 @@ void idRenderSystemLocal::Init( void ) {
 
 	demoGuiModel = new idGuiModel;
 	demoGuiModel->Clear();
-
-	xrayGuiImageOverride = nullptr;
 
 	R_InitTriSurfData();
 
