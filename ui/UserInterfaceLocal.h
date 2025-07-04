@@ -59,7 +59,6 @@ public:
 	virtual const char*			RunGuiScript(const char *windowName, int scriptNum) override;
 	virtual bool				ResetWindowTime(const char *windowName, int startTime = 0) override;
 	virtual void				UpdateSubtitles() override;
-	virtual const textureStage_t *GetXrayMaterialStage() override;
 
 	size_t						Size();
 
