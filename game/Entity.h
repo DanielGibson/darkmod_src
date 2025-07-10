@@ -375,8 +375,8 @@ public:
 	bool					m_bFrobSimple;
 
 	/**
-	* Frobdistance determines the distance in renderunits. If set to 0
-	* the entity is not frobable.
+	* Frobdistance determines the maximum distance to the players eye in renderunits.
+	*
 	**/
 	int						m_FrobDistance;
 

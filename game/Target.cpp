@@ -1982,6 +1982,8 @@ void CTarget_SetFrobable::Event_Activate( idEntity *activator )
 	// toggle frobability
 	m_bCurFrobState = !m_bCurFrobState;
 	
+	common->Printf("target_set_frobable %s activated by %s new state %d\n", GetName(), activator->GetName(), (int)m_bCurFrobState);
+
 	for (int i = 0; i < numEnts; i++)
 	{
 		idEntity* ent = Ents[i];
@@ -1990,11 +1992,14 @@ void CTarget_SetFrobable::Event_Activate( idEntity *activator )
 		if (ent == NULL || ent == this || 
 			ent == gameLocal.world || ent == gameLocal.GetLocalPlayer())
 		{
+			const char* entName = ent ? ent->GetName() : NULL;
+			common->Printf("Target_SetFrobable: Skipping entity %s\n", entName);
 			continue;
 		}
 
 		if (ent->spawnArgs.GetBool("immune_to_target_setfrobable", "0")) 
 		{
+			common->Printf("Target_SetFrobable: Entity %s is immune to setfrobable\n", ent->GetName());
 			continue; // greebo: per-entity exclusion
 		}
 
@@ -2028,14 +2033,15 @@ void CTarget_SetFrobable::Event_Activate( idEntity *activator )
 			}
 		}
 
-/* Uncomment for debugging
+ //Uncomment for debugging
 
-		idStr frobnofrob = "not frobable.";
+		const char* frobnofrob = "not frobable.";
 		if( m_bCurFrobState )
 			frobnofrob = "frobable.";
 
-		DM_LOG(LC_MISC,LT_DEBUG)LOGSTRING("Target_SetFrobable: Set entity %s to frob state: %s\r", Ents[i]->name.c_str(), frobnofrob.c_str() );
-*/
+		//DM_LOG(LC_MISC,LT_DEBUG)LOGSTRING("Target_SetFrobable: Set entity %s to frob state: %s\r", Ents[i]->name.c_str(), frobnofrob.c_str() );
+		common->Printf("Target_SetFrobable: Set entity %s to frob state: %s\n", Ents[i]->name.c_str(), frobnofrob);
+
 	}
 }
 

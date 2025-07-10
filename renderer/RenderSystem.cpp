@@ -583,8 +583,13 @@ void idRenderSystemLocal::DrawSmallStringExt( int x, int y, const char *string, 
 			s += 2;
 			continue;
 		}
-		DrawSmallChar( xx, y, *s, material );
-		xx += SMALLCHAR_WIDTH;
+		if ( *s == '\n' ) {
+			xx = 0;
+			y += SMALLCHAR_HEIGHT;
+		} else {
+			DrawSmallChar( xx, y, *s, material );
+			xx += SMALLCHAR_WIDTH;
+		}
 		s++;
 	}
 	SetColor( colorWhite );
