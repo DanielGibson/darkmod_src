@@ -3264,6 +3264,8 @@ void idPlayer::PrintDebugHUD(void)
 	renderSystem->DrawSmallStringExt(1, y, strText.c_str( ), idVec4( 1, 1, 1, 1 ), false, declManager->FindMaterial( "textures/bigchars" ));
 }
 
+static idStr frobExtraInfo;
+
 /*
 ===============
 idPlayer::DrawHUD
@@ -3298,13 +3300,24 @@ void idPlayer::DrawHUD(idUserInterface *_hud)
 
 	if (cv_frob_debug_hud.GetBool())
 	{
-		idStr name = m_FrobEntity.GetEntity() != NULL ? m_FrobEntity.GetEntity()->name : "none";
+		idStr name;
+		if (m_FrobEntity.GetEntity() != NULL)
+		{
+			name = m_FrobEntity.GetEntity()->name;
+		}
+		else
+		{
+			name = "none";
+			name += frobExtraInfo;
+		}
 		renderSystem->DrawSmallStringExt(1, 120, "Frobbed entity: " + name, idVec4( 1, 1, 1, 1 ), false, declManager->FindMaterial( "textures/bigchars" ));
 
 		if (m_FrobEntity.GetEntity() != NULL)
 		{
 			float distance = (GetEyePosition() - m_FrobTrace.endpos).Length();
-			idStr distanceStr = "Distance: " + idStr(distance);
+			idStr distanceStr = idStr::Fmt("Distance: %.2f Bias: %.2f Frob dist: %d %s",
+					distance, m_FrobEntity.GetEntity()->m_FrobBias, m_FrobEntity.GetEntity()->m_FrobDistance,
+					frobExtraInfo.c_str());
 			renderSystem->DrawSmallStringExt(1, 150, distanceStr, idVec4( 1, 1, 1, 1 ), false, declManager->FindMaterial( "textures/bigchars" ));
 		}
 	}
@@ -11102,6 +11115,7 @@ void idPlayer::PerformFrobCheck()
 	}
 }
 
+#if 0 // more or less original
 void idPlayer::PerformFrobCheckInternal()
 {
 	const bool bFrobHelperActive = m_FrobHelper.IsActive();
@@ -11130,7 +11144,7 @@ void idPlayer::PerformFrobCheckInternal()
 		if (bFrobHelperActive)
 			m_FrobHelper.HideInstantly();
 		return;
-	}	
+	}
 
 	idVec3 eyePos = GetEyePosition();
 	float maxFrobDistance = g_Global.m_MaxFrobDistance;
@@ -11148,7 +11162,7 @@ void idPlayer::PerformFrobCheckInternal()
 
 	trace_t trace;
 	gameLocal.clip.TracePoint(trace, start, end, cm, this);
-	
+
 	float traceDist = g_Global.m_MaxFrobDistance * trace.fraction;
 
 	bool bEntityAlreadyFrobbed = false;
@@ -11164,7 +11178,7 @@ void idPlayer::PerformFrobCheckInternal()
 		}
 
 		DM_LOG(LC_FROBBING, LT_INFO)LOGSTRING("Frob: Direct hit on entity %s\r", ent->name.c_str());
-		
+
 		// This is taking locked items into account
 		bool lockedItemCheck = true;
 		// If we are in the mode where we only frob ents used by our inventory item, this checks if it passes the test
@@ -11186,7 +11200,7 @@ void idPlayer::PerformFrobCheckInternal()
 		}
 
 		// Inventory items might impose a reduction of the frob distance to some entities
-		if ( curItem != NULL ) 
+		if ( curItem != NULL )
 		{
 			bool bCanBeUsed = ent->CanBeUsedByItem(curItem, true);
 
@@ -11205,10 +11219,10 @@ void idPlayer::PerformFrobCheckInternal()
 
 		// If shouldering a body, we only allow "simple" frobs
 		bool frobAllowed = !m_bShoulderingBody || ent->m_bFrobSimple;
-	
+
 		// only frob frobable, non-hidden entities within their frobdistance
 		// also, do not frob the ent we are currently holding in our hands
-		if ( ent->m_bFrobable && frobAllowed && lockedItemCheck && bUsedByCheck && !isRopeMaster 
+		if ( ent->m_bFrobable && frobAllowed && lockedItemCheck && bUsedByCheck && !isRopeMaster
 			 && !ent->IsHidden() && ( traceDist < ent->m_FrobDistance )
 			 && ( ent != gameLocal.m_Grabber->GetSelected() ) )
 		{
@@ -11220,15 +11234,15 @@ void idPlayer::PerformFrobCheckInternal()
 			if (!bFrobHelperActive)
 				// we have found our frobbed entity, so exit
 				return;
-			
+
 			if (!m_FrobHelper.IsEntityIgnored(ent))
 			{
 				// Entity is not ignored, so show FrobHelper and return
 				m_FrobHelper.Show();
 				return;
-			} 
+			}
 			// else: FrobHelper is not shown for this type of entity, but there
-			//		 could be entites in close proximity that are not ignored. 
+			//		 could be entites in close proximity that are not ignored.
 			//		 Check them, although the FrobCheck already succeeded.
 			bEntityAlreadyFrobbed = true;
 		}
@@ -11236,7 +11250,7 @@ void idPlayer::PerformFrobCheckInternal()
 
 	// If the trace didn't hit anything frobable, do the radius test
 	DM_LOG(LC_FROBBING,LT_INFO)LOGSTRING("No entity frobbed by direct LOS frob, trying frob radius.\r");
-	
+
 	idBounds frobBounds(trace.endpos);
 	frobBounds.ExpandSelf( cv_frob_width.GetFloat() );
 
@@ -11278,7 +11292,7 @@ void idPlayer::PerformFrobCheckInternal()
 		// Get the frob distance from the entity candidate
 		float frobDist = ent->m_FrobDistance;
 		idVec3 delta = ent->GetPhysics()->GetOrigin() - eyePos;
-		
+
 		float entDistance = delta.LengthFast();
 
 		if (entDistance > frobDist)
@@ -11354,6 +11368,364 @@ void idPlayer::PerformFrobCheckInternal()
 	// No frob entity
 	m_FrobEntity = NULL;
 }
+
+#else // patched
+
+void idPlayer::PerformFrobCheckInternal()
+{
+	const bool bFrobHelperActive = m_FrobHelper.IsActive();
+
+	frobExtraInfo.Clear();
+
+	// greebo: Don't run this when dead
+	if (AI_DEAD)
+	{
+		if (bFrobHelperActive)
+			m_FrobHelper.HideInstantly();
+		return;
+	}
+
+	// greebo: Don't run the frobcheck when we're dragging items around
+	if (m_bGrabberActive)
+	{
+		if (bFrobHelperActive)
+			m_FrobHelper.Hide();
+		return;
+	}
+
+	// ishtvan: Don't run if frob hilighting is disabled
+	// TODO: Should we just add this functionality to EIM_FROB and get rid of EIM_FROBHILIGHT?
+	if ( GetImmobilization() & EIM_FROB_HILIGHT )
+	{
+		m_FrobEntity = NULL;
+		if (bFrobHelperActive)
+			m_FrobHelper.HideInstantly();
+		return;
+	}	
+
+	idVec3 eyePos = GetEyePosition();
+	float maxFrobDistance = g_Global.m_MaxFrobDistance;
+
+	// greebo: Let the currently selected inventory item affect the frob distance (lockpicks, for instance)
+	CInventoryItemPtr curItem = InventoryCursor()->GetCurrentItem();
+
+	idVec3 vecForward = viewAngles.ToForward(); // FIXME: is this normalized?
+
+	idVec3 start = eyePos;
+	idVec3 end = start + vecForward * maxFrobDistance;
+
+	// Do frob trace first, along view axis, record distance traveled
+	// Frob collision mask:
+	int cm = CONTENTS_SOLID | CONTENTS_OPAQUE | CONTENTS_BODY
+		| CONTENTS_CORPSE | CONTENTS_RENDERMODEL; // | CONTENTS_FROBABLE;
+	//int cm = CONTENTS_REMOVE_UTIL;
+
+	trace_t trace;
+	bool firstTrace = true;
+	// FIXME: for some entities TracePoint() doesn't work at all - maybe because they don't clip?
+	if ( ! gameLocal.clip.TracePoint(trace, start, end, cm, this) )
+	{
+		// if the first trace didn't find anything, retry with CONTENTS_FROBABLE
+		gameLocal.clip.TracePoint(trace, start, end, CONTENTS_FROBABLE, this);
+		firstTrace = false;
+	}
+	
+	// TODO: would be nice if we could do
+	// - a "tube trace" from eye to end (with diameter cv_frob_width) first to
+	//   check if there's *anything* at all there (if not, return)
+	//   => problem: I don't think a tube trace exists
+	//   - make sure that this doesn't break picking up loot through bars
+	//     (should work if closer to start->end line has higher prio than distance?)
+	// - then do the point trace like above but *without* CONTENTS_FROBABLE
+	//   to find the first *visible* thing we're directly pointing at
+	//   (CONTENTS_FROBABLE matches bounding boxes, sucks for drawers and similar)
+	//   and if that thing is frobable, use it
+	//   (I think the `if ( trace.fraction < 1.0f )` block could do that as is)
+	// - *maybe* do a point trace with just CONTENTS_FROBABLE (if we haven't returned yet)
+	//   and if it hits anything use that (probable same if-block for additional checks)?
+	// - at the endpoint of either the tube trace or one of the point traces
+	//   (whatever is closer? or what?) do the frobBounds check as implemented
+	//   (but of course only if the previous steps haven't found anything yet)
+	//
+	// So question is: how to do the tube trace?
+	// (leaving out that step would already be an improvement for "coins in a drawer"
+	//  situations, but frobbing grates or doors with bars would still suck)
+	// maybe create an idClipModel for the tube and use	gameLocal.clip.ContactsModel() ?
+
+	// NOTE: Different drawers (and their contents) have different problems..
+	// for some drawers the trace incl. CONTENTS_FROBABLE works fine (lieutenant 4), for others
+	// it works better without CONTENTS_FROBABLE (wwtw)
+	// and then there are the unfrobable items (flat scroll in atc1), where the issue isn't really drawer-specific ...
+
+	// TODO: maybe use renderworld trace? renderEntity_t::entityNum should be the game entity number
+
+	float traceDist = g_Global.m_MaxFrobDistance * trace.fraction;
+
+	int cont = trace.fraction < 1.0f ? trace.c.contents : 0;
+
+	if( cv_frob_debug_bounds.GetBool() )
+	{
+		idVec3 up, right;
+		viewAngles.ToVectors(NULL, &right, &up);
+		up.Normalize();
+		right.Normalize();
+
+		float offs = 0.2;
+		idVec3 u = up * (offs);
+
+		right *= offs;
+
+		idVec3 starts[] = {
+			start + u,
+			start - u,
+			start + right,
+			start - right
+		};
+
+		for(const idVec3& s : starts) {
+			gameRenderWorld->DebugLine(colorOrange, s, end, 0, true);
+		}
+
+		//console->Print(idStr::Fmt("maxFrobDist: %.2f traceDist: %.2f content: %d start: (%.2f, %.2f, %.2f) end: (%.2f, %.2f, %.2f)\n",
+		//		maxFrobDistance, traceDist, cont, start.x, start.y, start.z, end.x, end.y, end.z));
+	}
+
+	bool bEntityAlreadyFrobbed = false;
+
+	if ( trace.fraction < 1.0f )
+	{
+		idEntity *ent = gameLocal.entities[ trace.c.entityNum ];
+
+		frobExtraInfo = idStr::Fmt(" at %s trace, dist = %.2f content: %d\ntrace ent: %s", firstTrace ? "first" : "second", traceDist, cont, ent->name.c_str());
+
+		float extraSpace = 0; // grayman #2478 - a little extra room to disarm a mine
+		if ( ent->IsType(idProjectile::Type) && static_cast<idProjectile*>(ent)->IsMine() )
+		{
+			extraSpace = 8;
+		}
+
+		if( cv_frob_debug_bounds.GetBool() ) {
+			idSphere sphere(trace.endpos, 1);
+			gameRenderWorld->DebugSphere(colorBlue, sphere, 0, 1);
+		}
+
+		DM_LOG(LC_FROBBING, LT_INFO)LOGSTRING("Frob: Direct hit on entity %s\r", ent->name.c_str());
+		
+		// This is taking locked items into account
+		bool lockedItemCheck = true;
+		// If we are in the mode where we only frob ents used by our inventory item, this checks if it passes the test
+		bool bUsedByCheck = true;
+
+		// greebo: Check if the frobbed entity is the bindmaster of the currently climbed rope
+		bool isRopeMaster = physicsObj.OnRope() && physicsObj.GetRopeEntity()->GetBindMaster() == ent;
+
+		// ishtvan: Check if the frobbed entity is a dynamically added AF body linked to another entity
+		if ( ent->IsType(idAFEntity_Base::Type) )
+		{
+			idAFEntity_Base *afEnt = static_cast<idAFEntity_Base *>(ent);
+			idAFBody *AFbod = afEnt->GetAFPhysics()->GetBody( afEnt->BodyForClipModelId(trace.c.id) );
+
+			if ( AFbod->GetRerouteEnt() && AFbod->GetRerouteEnt()->m_bFrobable )
+			{
+				ent = AFbod->GetRerouteEnt();
+			}
+		}
+
+		// Inventory items might impose a reduction of the frob distance to some entities
+		if ( curItem != NULL ) 
+		{
+			bool bCanBeUsed = ent->CanBeUsedByItem(curItem, true);
+
+			if ( bCanBeUsed && ( traceDist > curItem->GetFrobDistanceCap() + extraSpace ) )
+			{
+				// Failed the distance check for locked items, disable this entity
+				lockedItemCheck = false;
+			}
+
+			if ( m_bFrobOnlyUsedByInv && !bCanBeUsed )
+			{
+				// frob only used by is active and ent can't be used, failed check
+				bUsedByCheck = false;
+			}
+		}
+
+		// If shouldering a body, we only allow "simple" frobs
+		bool frobAllowed = !m_bShoulderingBody || ent->m_bFrobSimple;
+	
+		// only frob frobable, non-hidden entities within their frobdistance
+		// also, do not frob the ent we are currently holding in our hands
+		if ( ent->m_bFrobable && frobAllowed && lockedItemCheck && bUsedByCheck && !isRopeMaster 
+			 && !ent->IsHidden() && ( traceDist < ent->m_FrobDistance )
+			 && ( ent != gameLocal.m_Grabber->GetSelected() ) )
+		{
+			// Store the trace for later reference
+			m_FrobTrace = trace;
+			// Store the frob entity
+			m_FrobEntity = ent;
+
+			if (!bFrobHelperActive) {
+				frobExtraInfo += " return no helper active";
+				// we have found our frobbed entity, so exit
+				return;
+			}
+			
+			if (!m_FrobHelper.IsEntityIgnored(ent))
+			{
+				frobExtraInfo += " show frobhelper and return";
+				// Entity is not ignored, so show FrobHelper and return
+				m_FrobHelper.Show();
+				return;
+			} 
+			// else: FrobHelper is not shown for this type of entity, but there
+			//		 could be entites in close proximity that are not ignored. 
+			//		 Check them, although the FrobCheck already succeeded.
+			bEntityAlreadyFrobbed = true;
+			frobExtraInfo += " no early return";
+		} else {
+			frobExtraInfo += " no suitable entity in first trace";
+		}
+	} else {
+		// doesn't make much sense to do the radius/bbox test if the trace didn't hit *anything*,
+		// because in that case trace.endpos = end, which seems a bit random/confusing for players
+		// (only "finds" entities within radius that are at maxFrobDistance)
+		//return;
+		// FIXME: maybe set trace.endpos to start + vecForward * 50 or so? what's a sensible distance?
+		trace.endpos = start + vecForward * 50.0f;
+	}
+
+	// If the trace didn't hit anything frobable, do the radius test
+	DM_LOG(LC_FROBBING,LT_INFO)LOGSTRING("No entity frobbed by direct LOS frob, trying frob radius.\r");
+
+	idBounds frobBounds(trace.endpos);
+	frobBounds.ExpandSelf( cv_frob_width.GetFloat() );
+
+	// Optional debug drawing of frob bounds
+	if( cv_frob_debug_bounds.GetBool() )
+	{
+		gameRenderWorld->DebugBounds( colorBlue, frobBounds );
+	}
+
+	idClip_EntityList frobRangeEnts;
+	int numFrobEnt = gameLocal.clip.EntitiesTouchingBounds(frobBounds, -1, frobRangeEnts);
+
+
+	float bestDot = 0;
+	idEntity* bestEnt = NULL;
+
+	bool bEntityRelevantToFrobHelperFound = false;
+
+	for ( int i = 0 ; i < numFrobEnt ; i++ )
+	{
+		idEntity *ent = frobRangeEnts[i];
+
+		if (ent == NULL)
+		{
+			continue;
+		}
+
+		if (!ent->m_FrobDistance || ent->IsHidden() || !ent->m_bFrobable)
+		{
+			continue;
+		}
+
+		// If shouldering a body, we only allow "simple" frobs
+		if (m_bShoulderingBody && !ent->m_bFrobSimple)
+		{
+			continue;
+		}
+
+		// Get the frob distance from the entity candidate
+		float frobDist = ent->m_FrobDistance;
+		idVec3 delta = ent->GetPhysics()->GetOrigin() - eyePos;
+		
+		float entDistance = delta.LengthFast();
+
+		if (entDistance > frobDist)
+		{
+			continue; // too far
+		}
+
+		if (curItem != NULL) // grayman #2478 - rearranged code
+		{
+			bool canBeUsed = ent->CanBeUsedByItem(curItem, true);
+
+			// Inventory items might impose a reduction of the frob distance to some entities.
+			// grayman #2478 - If the frobbed entity is a mine, increase the distance.
+
+			// Special case for armed mine and lockpick.
+
+			bool isMine = ( ent->IsType(idProjectile::Type) && static_cast<idProjectile*>(ent)->IsMine() );
+			if ( isMine )
+			{
+				if ( !canBeUsed || ( entDistance > ( curItem->GetFrobDistanceCap() + 8 ) ) )
+				{
+					continue;
+				}
+			}
+			else if ( canBeUsed && ( entDistance > curItem->GetFrobDistanceCap() ) )
+			{
+				// Failed inventory item distance check, ignore this entity
+				continue;
+			}
+
+			// Frob only used by inv. item is active, and this entity cannot be used by it
+			if ( m_bFrobOnlyUsedByInv && !canBeUsed )
+			{
+				continue;
+			}
+		}
+
+		if (!m_FrobHelper.IsEntityIgnored(ent))
+			bEntityRelevantToFrobHelperFound = true;
+
+		delta.NormalizeFast(); // ent_origin - eyepos => direction from eye to ent
+		float currentDot = delta * vecForward; // 1: delta is on vecForward; 0: delta is orthogonal to vecForward
+		currentDot *= ent->m_FrobBias;
+		// TODO: shouldn't entDistance also play a role? especially to prioritize closer entities that hide ones further away?
+		//   =>  maybe first sort them by distance and then do this dot check in closest -> furthest order? (or are they already sorted by distance?)
+		// TODO: this dot check uses the origin, but that discriminates bigger objects that may still be on view vector
+		// TODO: maybe give ent->CanBePickedUp() priority, esp. if it doesn't explicitly hae a frobBias set?
+		//       (=> you can still frob the button once you picked this up)
+
+		if ( currentDot > bestDot )
+		{
+			bestDot = currentDot;
+			bestEnt = ent;
+		}
+	}
+
+	if (bEntityRelevantToFrobHelperFound)
+		m_FrobHelper.Show();
+	else
+		m_FrobHelper.Hide();
+
+	if (bEntityAlreadyFrobbed) {
+		// Already frobbed an entity. We only worked until here so that we can
+		// check if FrobHelper is supposed to be shown.
+		frobExtraInfo += idStr::Fmt(" return already frobbed");
+		return;
+	}
+
+	// Activate frobbed state on found entity. We might have alrady
+	if ( ( bestEnt != NULL ) && ( bestEnt != gameLocal.m_Grabber->GetSelected() ) )
+	{
+		// Store the frob entity
+		m_FrobEntity = bestEnt;
+		// and the trace for reference
+		m_FrobTrace = trace;
+
+		frobExtraInfo += idStr::Fmt(" frob entity: %s", bestEnt->GetName());
+
+		return; // done
+	}
+
+	frobExtraInfo += idStr::Fmt(" numFrobEnt: %d", numFrobEnt);
+
+	// No frob entity
+	m_FrobEntity = NULL;
+}
+
+#endif
 
 int idPlayer::GetImmobilization( const char *source )
 {

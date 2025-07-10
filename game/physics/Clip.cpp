@@ -752,7 +752,7 @@ int idClip::ClipModelsTouchingMovingBounds(
 	touchCount++;
 
 	for ( int i = 0; i < res.Num(); i++ ) {
-		auto chunk = res[i];
+		idBoxOctree::Chunk* chunk = res[i];
 
 		for ( int j = 0; j < chunk->num; j++ ) {
 			idClipModel *check = (idClipModel*)chunk->arr[j].object;
@@ -820,6 +820,7 @@ void idClip::FilterEntities( idClip_EntityList &entityList, idClip_ClipModelList
 	entityList.Clear();
 	for ( int i = 0; i < clipModelList.Num(); i++ ) {
 		// entity could already be in the list because an entity can use multiple clip models
+		// FIXME: there must be a a more efficient way to do this
 		int j;
 		for ( j = 0; j < entityList.Num(); j++ ) {
 			if ( entityList[j] == clipModelList[i]->entity ) {
