@@ -11115,6 +11115,24 @@ void idPlayer::PerformFrobCheck()
 	}
 }
 
+void calcMinMaxAvg(const double* vals, int numVals, double& outmin, double& outmax, double& outavg)
+{
+	double sumv = 0.0;
+	double minv = 10000;
+	double maxv = -10000;
+	for(int i=0; i<numVals; ++i) {
+		double v = vals[i];
+		sumv += v;
+		if(v < minv)
+			minv = v;
+		if(v > maxv)
+			maxv = v;
+	}
+	outavg = sumv / double(numVals);
+	outmin = minv;
+	outmax = maxv;
+}
+
 #if 0 // more or less original
 void idPlayer::PerformFrobCheckInternal()
 {
@@ -11375,7 +11393,7 @@ void idPlayer::PerformFrobCheckInternal()
 {
 	const bool bFrobHelperActive = m_FrobHelper.IsActive();
 
-	frobExtraInfo.Clear();
+	//frobExtraInfo.Clear();
 
 	// greebo: Don't run this when dead
 	if (AI_DEAD)
@@ -11423,6 +11441,7 @@ void idPlayer::PerformFrobCheckInternal()
 	trace_t trace;
 	bool firstTrace = true;
 	// FIXME: for some entities TracePoint() doesn't work at all - maybe because they don't clip?
+	double beforePointTrace = Sys_Nanoseconds();
 	if ( ! gameLocal.clip.TracePoint(trace, start, end, cm, this) )
 	{
 		// if the first trace didn't find anything, retry with CONTENTS_FROBABLE
@@ -11430,6 +11449,21 @@ void idPlayer::PerformFrobCheckInternal()
 		firstTrace = false;
 	}
 	
+
+	{
+		double afterPointTrace = Sys_Nanoseconds();
+		double ptus = 0.001 * (afterPointTrace - beforePointTrace);
+		static int ptusIdx = 0;
+		static double ptusses[16] = {};
+		ptusses[ptusIdx++] = ptus;
+		ptusIdx &= 15;
+
+		double minv, maxv, avgv;
+		calcMinMaxAvg(ptusses, 16, minv, maxv, avgv);
+
+		frobExtraInfo = idStr::Fmt("\npoint trace took %6.3f / %6.3f / %6.3f us (avg/min/max)\n", avgv, minv, maxv);
+	}
+
 	// TODO: would be nice if we could do
 	// - a "tube trace" from eye to end (with diameter cv_frob_width) first to
 	//   check if there's *anything* at all there (if not, return)
@@ -11496,7 +11530,7 @@ void idPlayer::PerformFrobCheckInternal()
 	{
 		idEntity *ent = gameLocal.entities[ trace.c.entityNum ];
 
-		frobExtraInfo = idStr::Fmt(" at %s trace, dist = %.2f content: %d\ntrace ent: %s", firstTrace ? "first" : "second", traceDist, cont, ent->name.c_str());
+		frobExtraInfo += idStr::Fmt(" at %s trace, dist = %.2f content: %d\ntrace ent: %s", firstTrace ? "first" : "second", traceDist, cont, ent->name.c_str());
 
 		float extraSpace = 0; // grayman #2478 - a little extra room to disarm a mine
 		if ( ent->IsType(idProjectile::Type) && static_cast<idProjectile*>(ent)->IsMine() )
@@ -11606,7 +11640,21 @@ void idPlayer::PerformFrobCheckInternal()
 	}
 
 	idClip_EntityList frobRangeEnts;
+	double beforeEntTouchBounds = Sys_Nanoseconds();
 	int numFrobEnt = gameLocal.clip.EntitiesTouchingBounds(frobBounds, -1, frobRangeEnts);
+
+	{
+		double afterEntTouchBounds = Sys_Nanoseconds();
+		double etbus = 0.001 * (afterEntTouchBounds - beforeEntTouchBounds);
+		static double etbusses[16] = {};
+		static int etbusidx = 0;
+		etbusses[etbusidx++] = etbus;
+		etbusidx &= 15;
+
+		double minv, maxv, avgv;
+		calcMinMaxAvg(etbusses, 16, minv, maxv, avgv);
+		frobExtraInfo += idStr::Fmt("\n EntitiesTouchingBounds took %6.3f / %6.3f / %6.3f us (avg/min/max)\n", avgv, minv, maxv);
+	}
 
 
 	float bestDot = 0;
@@ -11638,7 +11686,7 @@ void idPlayer::PerformFrobCheckInternal()
 		float frobDist = ent->m_FrobDistance;
 		idVec3 delta = ent->GetPhysics()->GetOrigin() - eyePos;
 		
-		float entDistance = delta.LengthFast();
+		float entDistance = delta.LengthFast(); // TODO: even faster: use LengthSqr()
 
 		if (entDistance > frobDist)
 		{
