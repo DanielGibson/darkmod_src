@@ -114,6 +114,30 @@ double Sys_ClockTicksPerSecond( void ) {
 	return ticks;
 }
 
+static double perfCountToNS = 0.0; // set in initTime()
+static LARGE_INTEGER firstCount = { 0 };
+
+static void initTime() {
+	LARGE_INTEGER freq = { 0 };
+	QueryPerformanceFrequency(&freq); // in Hz
+	perfCountToNS = 1000000000.0 / (double)freq.QuadPart; // 1/freq would be factor for seconds, we want nanoseconds
+	QueryPerformanceCounter(&firstCount);
+	firstCount.QuadPart -= freq.QuadPart; // make sure Sys_Nanoseconds() always returns value >= 1 s
+}
+
+// DG: something sane for high-resolution time keeping :-p
+double Sys_Nanoseconds()
+{
+	if (firstCount.QuadPart == 0) {
+		initTime();
+	}
+	LARGE_INTEGER cur;
+	QueryPerformanceCounter(&cur);
+
+	double ret = cur.QuadPart - firstCount.QuadPart;
+	ret *= perfCountToNS;
+	return ret;
+}
 
 /*
 ==============================================================

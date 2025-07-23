@@ -320,6 +320,9 @@ int				Sys_Milliseconds( void );
 double			Sys_GetClockTicks( void );
 double			Sys_ClockTicksPerSecond( void );
 
+// DG: something sane for high-resolution time keeping :-p
+double			Sys_Nanoseconds();
+
 // timing equivalent to boost::posix_time::microsec_clock
 // returns number of microseconds passed after 1970-Jan-01
 // uses GetSystemTimeAsFileTime on Windows and gettimeofday on other platforms

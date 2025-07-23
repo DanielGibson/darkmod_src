@@ -29,6 +29,11 @@ Project: The Dark Mod (http://www.thedarkmod.com/)
 #include <signal.h>
 #include <fcntl.h>
 
+#ifdef __APPLE__ // for clock_get_time() in Sys_NanoSeconds()
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 #include "posix_public.h"
 
 #define					MAX_OSPATH 256
@@ -1011,4 +1016,50 @@ void Sys_Error(const char *error, ...) {
 	Sys_Printf( "\n" );
 
 	Posix_Exit( EXIT_FAILURE );
+}
+
+#ifdef __APPLE__
+  static mach_timespec_t first;
+#else
+  static struct timespec first;
+
+  #ifdef _POSIX_MONOTONIC_CLOCK
+    #define D3_GETTIME_CLOCK CLOCK_MONOTONIC
+  #else
+    #define D3_GETTIME_CLOCK CLOCK_REALTIME
+  #endif
+#endif
+
+// DG: something sane for high-resolution time keeping :-p
+double Sys_Nanoseconds()
+{
+#ifdef __APPLE__
+	// OSX didn't have clock_gettime() until recently, so use Mach's clock_get_time()
+	// instead. fortunately its mach_timespec_t seems identical to POSIX struct timespec
+	// so lots of code can be shared
+	clock_serv_t cclock;
+	mach_timespec_t now;
+
+	host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
+	clock_get_time(cclock, &now);
+	mach_port_deallocate(mach_task_self(), cclock);
+
+#else // not __APPLE__ - other Unix-likes will hopefully support clock_gettime()
+	struct timespec now;
+	clock_gettime(D3_GETTIME_CLOCK, &now);
+#endif
+
+	static bool isInit = false;
+	if(!isInit) {
+		first = now;
+		first.tv_sec--; // make sure to always get values >0
+		isInit = true;
+	}
+
+	long long sec = now.tv_sec - first.tv_sec;
+	long long nsec = now.tv_nsec - first.tv_nsec;
+
+	long long ret = sec * 1000000000ll;
+	ret += nsec;
+	return double(ret);
 }
