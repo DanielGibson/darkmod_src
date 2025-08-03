@@ -552,7 +552,7 @@ void idClipModel::Link( idClip &clp, idEntity *ent, int newId, const idVec3 &new
 	this->id = newId;
 	this->origin = newOrigin;
 	this->axis = newAxis;
-	if ( renderModelHandle != -1 ) {
+	if ( renderModelHandle != -1 ) { // TODO: check ent->GetModelDefHandle() instead ?
 		this->renderModelHandle = renderModelHandle;
 		const renderEntity_t *renderEntity = gameRenderWorld->GetRenderEntity( renderModelHandle );
 		if ( renderEntity ) {
@@ -983,7 +983,7 @@ idClip::Translation
 */
 bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &end,
 						const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity,
-						bool ignoreWorld ) {
+						bool ignoreWorld, bool forFrob ) {
 	int i, num;
 	idClipModel *touch;
 	idBounds traceBounds;
@@ -1064,6 +1064,11 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 			continue;
 		}
 
+		// DG: added forFrob and using it in this check
+		if (forFrob && !touch->entity->m_bFrobable) {
+			continue;
+		}
+
 		if (movingClipCheck && fractionLowers[i] > results.fraction) {
 			//stgatilov: judging from bounds, we can only obtain higher fractions for other models
 			for (int t = i; t < num; t++)
@@ -1071,16 +1076,49 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 			break;
 		}
 
-		if ( touch->renderModelHandle != -1 ) {
+		idClipModel* cm = touch;
+
+		if ( touch->renderModelHandle != -1 ) {// XXX why don't we have this? - seems to be normal, only available if loaded in a special way
 			idClip::numRenderModelTraces++;
 			TraceRenderModel( trace, start, end, radius, trmAxis, touch );
-		} else {
+		} else { // XXX most probably fails because it's not part of the world? - works fine for "hoppie2" scroll, which is also an idMovable but has material with collision
 			idClip::numTranslations++;
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
+			// DG: hack for frobabble things that don't have collision
+			if(forFrob && trace.fraction == 1.0) {
+				/*if(touch->entity->GetModelDefHandle() != -1) { // if it has a renderModel, fall back to TraceRenderModel()
+					idClipModel touchCopy(touch);
+					touchCopy.renderModelHandle = touch->entity->GetModelDefHandle();
+					idClip::numRenderModelTraces++;
+					TraceRenderModel( trace, start, end, radius, trmAxis, &touchCopy );
+				} else */ if(touch->IsTraceModel()) { // if no rendermodel, try the tracemodel with a texture that has collision
+					// FIXME: does this give false positives?
+					const idTraceModel* tm = touch->GetTraceModel();
+					// TODO: I think material NULL (defaults to "_tracemodel") should also work?
+					const idMaterial* mat = declManager->FindMaterial("textures/common/collision", false);
+
+					cmHandle_t cmh = collisionModelManager->SetupTrmModel( *tm, mat );
+					idClip::numTranslations++;
+					collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask | CONTENTS_FROBABLE,
+													cmh, touch->origin, touch->axis );
+
+					//collisionModelManager->DrawModel(cmh, touch->origin, touch->axis, start, 2.0);
+					//collisionModelManager->ModelInfo(cmh);
+
+					printf("ent: %s mat = %p fraction = %f origin: %.2f %.2f %.2f endpos: %.2f %.2f %.2f\n",
+							touch->entity->GetName(), mat, trace.fraction,
+							touch->origin.x, touch->origin.y, touch->origin.z,
+							results.endpos.x, results.endpos.y, results.endpos.z);
+					// TODO: at least with that scroll it doesn't work, but it has a suitable rendermodel so whatever
+				}
+			} else {
+				//collisionModelManager->DrawModel(touch->Handle(), touch->origin, touch->axis, start, 2.0);
+			}
+			// TODO: this is nice and everything, but in reality I want something more like Contacts() for frobbing
 		}
 
-		if ( trace.fraction < results.fraction ) {
+		if ( trace.fraction < results.fraction ) { // XXX: because collisionModelManager->Translation() didn't hit anything, trace.fraction = 1.0
 			results = trace;
 			results.c.entityNum = touch->entity->entityNumber;
 			results.c.id = touch->id;
@@ -1343,7 +1381,7 @@ idClip::Contacts
 ============
 */
 int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVec3 &start, const idVec6 &dir, const float depth,
-					 const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity ) {
+					 const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity, bool forFrob ) {
 	int i, j, num, n, numContacts;
 	idClipModel *touch;
 	idBounds traceBounds;
@@ -1379,6 +1417,8 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 		return numContacts;
 	}
 
+	idVec3 end = start + dir.SubVec3(0) * depth;
+
 	if ( !trm ) {
 		traceBounds = idBounds( start ).Expand( depth );
 	} else {
@@ -1387,6 +1427,7 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 	}
 
 	idClip_ClipModelList clipModelList;
+	// TODO: movingClipCheck like in Translation()?
 	num = GetTraceClipModels( traceBounds, contentMask, passEntity, clipModelList );
 
 	for ( i = 0; i < num; i++ ) {
@@ -1396,20 +1437,49 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 			continue;
 		}
 
-		// no contacts with render models
-		if ( touch->renderModelHandle != -1 ) {
+		if ( forFrob ) {
+			if(touch->entity == NULL || !touch->entity->m_bFrobable) {
+				continue;
+			}
+		} else if ( touch->renderModelHandle != -1 ) {
+			// no contacts with render models (except for frobbing, maybe)
 			continue;
 		}
 
-		idClip::numContacts++;
-		n = collisionModelManager->Contacts( contacts + numContacts, maxContacts - numContacts,
-								start, dir, depth, trm, trmAxis, contentMask,
-									touch->Handle(), touch->origin, touch->axis );
-
-		for ( j = 0; j < n; j++ ) {
-			contacts[numContacts].entityNum = touch->entity->entityNumber;
-			contacts[numContacts].id = touch->id;
-			numContacts++;
+		cmHandle_t cmh = touch->collisionModelHandle;
+		if(!cmh) {
+			const idTraceModel* tm = touch->GetTraceModel();
+			if(tm != NULL) {
+				cmh = collisionModelManager->SetupTrmModel(*tm, touch->material);
+			}
+		}
+		if(cmh) {
+			idClip::numContacts++;
+			n = collisionModelManager->Contacts( contacts + numContacts, maxContacts - numContacts,
+									start, dir, depth, trm, trmAxis, contentMask,
+									cmh, touch->origin, touch->axis );
+			for ( j = 0; j < n; j++ ) {
+				contacts[numContacts].entityNum = touch->entity->entityNumber;
+				contacts[numContacts].id = touch->id;
+				numContacts++;
+			}
+		}
+		// DG: in case of frobbing, fall back to TraceRenderModel() if Contacts() failed
+		if(n == 0 && forFrob && touch->entity->GetModelDefHandle() != -1) {
+			printf("XXX: Contacts() failed for entity %s, trying TraceRenderModel()\n", touch->entity->GetName());
+			idClipModel touchCopy(touch);
+			touchCopy.renderModelHandle = touch->entity->GetModelDefHandle();
+			trace_t trace;
+			float radius = trm->bounds.GetSize().LengthFast() * 0.5f;
+			idClip::numRenderModelTraces++;
+			TraceRenderModel( trace, start, end, radius, trmAxis, &touchCopy );
+			if(trace.fraction < 1.0f) {
+				contacts[numContacts] = trace.c;
+				contacts[numContacts].entityNum = touch->entity->entityNumber;
+				contacts[numContacts].id = touch->id;
+				numContacts++;
+			}
+			// TODO: if we have a tracemodel, could retry with different material that has collision (or none at all)
 		}
 
 		if ( numContacts >= maxContacts ) {

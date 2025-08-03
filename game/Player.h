@@ -859,6 +859,7 @@ public:
 	**/
 	void					PerformFrobCheck();
 	void					PerformFrobCheckInternal();
+	void					PerformFrobCheckInternalOld();
 
 	/**
 	 * greebo: Performs a frob action on the given entity. The above method

@@ -1040,7 +1040,7 @@ void idPhysics_RigidBody::DropToFloorAndRest( void ) {
 	down = current.i.position + gravityNormal * 128.0f;
 	gameLocal.clip.Translation( tr, current.i.position, down, clipModel, current.i.orientation, clipMask, self );
 	current.i.position = tr.endpos;
-	clipModel->Link( gameLocal.clip, self, clipModel->GetId(), tr.endpos, current.i.orientation );
+	clipModel->Link( gameLocal.clip, self, clipModel->GetId(), tr.endpos, current.i.orientation ); // XXX: renderModelHandle not passed
 
 	// if on the floor already
 	if ( tr.fraction == 0.0f ) {
@@ -1351,7 +1351,7 @@ void idPhysics_RigidBody::SetClipModel( idClipModel *model, const float density,
 		delete clipModel;
 	}
 	clipModel = model;
-	clipModel->Link( gameLocal.clip, self, 0, current.i.position, current.i.orientation );
+	clipModel->Link( gameLocal.clip, self, 0, current.i.position, current.i.orientation ); // XXX: renderModelHandle not passed
 
 	// get mass properties from the trace model
 	clipModel->GetMassProperties( density, mass, centerOfMass, inertiaTensor );

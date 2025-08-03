@@ -839,6 +839,7 @@ void idMoveableItem::Spawn( void )
 	trigger = new idClipModel( FrobTrm );
 	trigger->Link( gameLocal.clip, this, 0, GetPhysics()->GetOrigin(), GetPhysics()->GetAxis() );
 	trigger->SetContents( CONTENTS_FROBABLE );
+	// FIXME: currently I'm ignoring FrotTrm because I'm ignoring CONTENTS_FROBABLE
 
 	// check if a clip model is set
 	spawnArgs.GetString( "clipmodel", "", clipModelName );
@@ -874,6 +875,7 @@ void idMoveableItem::Spawn( void )
 
 	// setup the physics
 	physicsObj.SetSelf( this );
+	// TODO: what is trm and can we also create the clipmodel from the regular model to get a collisionModelHandle ?
 	physicsObj.SetClipModel( new idClipModel( trm ), density );
 	physicsObj.SetOrigin( GetPhysics()->GetOrigin() );
 	physicsObj.SetAxis( GetPhysics()->GetAxis() );

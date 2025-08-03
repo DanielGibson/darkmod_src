@@ -70,7 +70,10 @@ public:
 	void					Restore( idRestoreGame *savefile );
 
 	void					Link( idClip &clp );				// must have been linked with an entity and id before
-	void					Link( idClip &clp, idEntity *ent, int newId, const idVec3 &newOrigin, const idMat3 &newAxis, int renderModelHandle = -1 );
+	void					Link( idClip &clp, idEntity *ent, int newId, const idVec3 &newOrigin, const idMat3 &newAxis, int renderModelHandle);
+	void					Link( idClip &clp, idEntity *ent, int newId, const idVec3 &newOrigin, const idMat3 &newAxis) {
+		Link(clp, ent, newId, newOrigin, newAxis, -1);
+	}
 	void					Unlink( void );						// unlink from sectors
 	void					SetPosition( const idVec3 &newOrigin, const idMat3 &newAxis );	// unlinks the clip model
 	/**
@@ -279,13 +282,13 @@ public:
 
 	// clip versus the rest of the world
 	bool					Translation( trace_t &results, const idVec3 &start, const idVec3 &end,
-								const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity, bool ignoreWorld = false );
+								const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity, bool ignoreWorld = false, bool forFrob = false );
 	bool					Rotation( trace_t &results, const idVec3 &start, const idRotation &rotation,
 								const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity );
 	bool					Motion( trace_t &results, const idVec3 &start, const idVec3 &end, const idRotation &rotation,
 								const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity );
 	int						Contacts( contactInfo_t *contacts, const int maxContacts, const idVec3 &start, const idVec6 &dir, const float depth,
-								const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity );
+								const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity, bool forFrob = false );
 	int						Contents( const idVec3 &start,
 								const idClipModel *mdl, const idMat3 &trmAxis, int contentMask, const idEntity *passEntity );
 
